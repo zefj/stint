@@ -131,3 +131,32 @@ export function getTimersWithActiveSessions(): Array<Timer & { activeSession: Ti
     })
     .filter((item): item is Timer & { activeSession: TimerSession } => item !== null);
 }
+
+/**
+ * Create a manual timer session (for retroactive time entry)
+ * Auto-creates timer if it doesn't exist
+ */
+export function createSession(timerName: string, start: number, end: number): TimerSession {
+  if (start >= end) {
+    throw new Error('Session end time must be after start time');
+  }
+
+  let timer = getTimerByName(timerName);
+
+  // Auto-create timer if it doesn't exist
+  if (!timer) {
+    timer = createTimer(timerName);
+  }
+
+  // Create session with both start and end times
+  const sessionId = nanoid();
+  queries.createSession().run(sessionId, timer.id, start, end);
+
+  const db = getDb();
+  const result = db.query('SELECT * FROM timer_sessions WHERE id = ?').get(sessionId);
+  if (!result) {
+    throw new Error('Failed to create session');
+  }
+
+  return TimerSessionSchema.parse(sessionFromRow(result as any));
+}

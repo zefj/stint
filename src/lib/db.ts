@@ -108,6 +108,11 @@ export const queries = {
     return db.prepare('UPDATE timer_sessions SET end = ? WHERE id = ?');
   },
 
+  createSession: () => {
+    const db = getDb();
+    return db.prepare('INSERT INTO timer_sessions (id, timer_id, start, end) VALUES (?, ?, ?, ?)');
+  },
+
   getActiveSession: () => {
     const db = getDb();
     return db.query<TimerSessionRow, [string]>(
