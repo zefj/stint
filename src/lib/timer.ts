@@ -160,3 +160,37 @@ export function createSession(timerName: string, start: number, end: number): Ti
 
   return TimerSessionSchema.parse(sessionFromRow(result as any));
 }
+
+/**
+ * Get all sessions in a date range (only completed sessions with end times)
+ * Returns sessions grouped by timer
+ */
+export function getSessionsByTimer(startTime: number, endTime: number): Map<Timer, TimerSession[]> {
+  const results = queries.getSessionsInRange().all(startTime, endTime);
+  const sessions = results
+    .map((row) => sessionFromRow(row))
+    .filter((session) => session.end !== null); // Only completed sessions
+
+  // Group by timer
+  const timerMap = new Map<string, Timer>();
+  const sessionsByTimer = new Map<Timer, TimerSession[]>();
+
+  for (const session of sessions) {
+    // Get or cache timer
+    let timer = timerMap.get(session.timerId);
+    if (!timer) {
+      const timerRow = queries.getTimerById().get(session.timerId);
+      if (timerRow) {
+        timer = TimerSchema.parse(timerFromRow(timerRow));
+        timerMap.set(session.timerId, timer);
+      }
+    }
+
+    if (timer) {
+      const existing = sessionsByTimer.get(timer) || [];
+      sessionsByTimer.set(timer, [...existing, session]);
+    }
+  }
+
+  return sessionsByTimer;
+}
