@@ -291,3 +291,23 @@ export function getAllSessionsByTimer(startTime: number, endTime: number): Map<T
 
   return sessionsByTimer;
 }
+
+/**
+ * Get a session by its ID
+ */
+export function getSessionById(sessionId: string): TimerSession | null {
+  const result = queries.getSessionById().get(sessionId);
+  if (!result) return null;
+  return TimerSessionSchema.parse(sessionFromRow(result));
+}
+
+/**
+ * Delete a session by its ID
+ */
+export function deleteSession(sessionId: string): void {
+  const session = getSessionById(sessionId);
+  if (!session) {
+    throw new Error(`Session "${sessionId}" not found`);
+  }
+  queries.deleteSession().run(sessionId);
+}

@@ -4,6 +4,7 @@ import { Command } from 'commander';
 import { startCommand } from './commands/start';
 import { stopCommand } from './commands/stop';
 import { createCommand } from './commands/create';
+import { deleteCommand } from './commands/delete';
 import { logCommand } from './commands/log';
 import { reportCommand } from './commands/report';
 
@@ -18,8 +19,9 @@ program
 program.addCommand(startCommand);
 program.addCommand(stopCommand);
 
-// Manual session creation
+// Manual session management
 program.addCommand(createCommand);
+program.addCommand(deleteCommand);
 
 // History & Reporting
 program.addCommand(logCommand);

@@ -165,4 +165,14 @@ export const queries = {
       'SELECT * FROM timer_sessions WHERE timer_id = ? AND start >= ? AND start <= ? ORDER BY start DESC'
     );
   },
+
+  getSessionById: () => {
+    const db = getDb();
+    return db.query<TimerSessionRow, [string]>('SELECT * FROM timer_sessions WHERE id = ?');
+  },
+
+  deleteSession: () => {
+    const db = getDb();
+    return db.prepare('DELETE FROM timer_sessions WHERE id = ?');
+  },
 };
