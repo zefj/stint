@@ -6,7 +6,6 @@ import { stopCommand } from './commands/stop';
 import { createCommand } from './commands/create';
 import { deleteCommand } from './commands/delete';
 import { logCommand } from './commands/log';
-import { reportCommand } from './commands/report';
 
 const program = new Command();
 
@@ -23,8 +22,7 @@ program.addCommand(stopCommand);
 program.addCommand(createCommand);
 program.addCommand(deleteCommand);
 
-// History & Reporting
+// History
 program.addCommand(logCommand);
-program.addCommand(reportCommand);
 
 program.parse();
