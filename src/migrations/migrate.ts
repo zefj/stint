@@ -49,9 +49,7 @@ export function runMigrations(db: Database): void {
     }
   }
 
-  if (appliedCount === 0) {
-    console.log('No new migrations to apply');
-  } else {
+  if (appliedCount > 0) {
     console.log(`\n✓ Applied ${appliedCount} migration(s)`);
   }
 }
