@@ -1,9 +1,8 @@
 import { Command } from 'commander';
-import { format } from 'date-fns';
 import { getAllSessionsByTimer } from '../lib/timer';
 import { parseDateRange } from '../lib/dateRange';
 import { getChalkColor } from '../lib/colors';
-import { formatTime, formatDuration, getSessionDuration } from '../lib/format';
+import { formatTime, formatDuration, getSessionDuration, formatDateShort } from '../lib/format';
 import type { Timer, TimerSession } from '../lib/schemas';
 
 export const logCommand = new Command('log')
@@ -26,7 +25,8 @@ export const logCommand = new Command('log')
 
       sessionsByTimer.forEach((sessions, timer) => {
         sessions.forEach((session) => {
-          const dayKey = format(new Date(session.start * 1000), 'yyyy-MM-dd');
+          const sessionDate = new Date(session.start * 1000);
+          const dayKey = `${sessionDate.getFullYear()}-${String(sessionDate.getMonth() + 1).padStart(2, '0')}-${String(sessionDate.getDate()).padStart(2, '0')}`;
 
           let dayMap = sessionsByDay.get(dayKey);
           if (!dayMap) {
@@ -52,7 +52,7 @@ export const logCommand = new Command('log')
         const dayMap = sessionsByDay.get(dayKey)!;
         const dayDate = new Date(dayKey + 'T00:00:00');
 
-        console.log(format(dayDate, 'EEEE, MMMM d, yyyy'));
+        console.log(formatDateShort(dayDate));
 
         let dayTotal = 0;
 

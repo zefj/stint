@@ -1,4 +1,5 @@
 import { startOfDay, endOfDay, subDays, startOfMonth, endOfMonth } from 'date-fns';
+import { formatDateShort } from './format';
 
 export type DateRange = {
   start: number; // Unix timestamp (seconds)
@@ -21,7 +22,7 @@ export function parseDateRange(rangeStr?: string): DateRange {
     return {
       start: Math.floor(start.getTime() / 1000),
       end: Math.floor(end.getTime() / 1000),
-      label: `Today (${formatDateLabel(start)})`,
+      label: `Today (${formatDateShort(start)})`,
     };
   }
 
@@ -32,7 +33,7 @@ export function parseDateRange(rangeStr?: string): DateRange {
     return {
       start: Math.floor(start.getTime() / 1000),
       end: Math.floor(end.getTime() / 1000),
-      label: `Yesterday (${formatDateLabel(start)})`,
+      label: `Yesterday (${formatDateShort(start)})`,
     };
   }
 
@@ -43,7 +44,7 @@ export function parseDateRange(rangeStr?: string): DateRange {
     return {
       start: Math.floor(start.getTime() / 1000),
       end: Math.floor(end.getTime() / 1000),
-      label: `Last 7 days (${formatDateLabel(start)} to ${formatDateLabel(end)})`,
+      label: `Last 7 days (${formatDateShort(start)} to ${formatDateShort(end)})`,
     };
   }
 
@@ -53,7 +54,7 @@ export function parseDateRange(rangeStr?: string): DateRange {
     return {
       start: Math.floor(start.getTime() / 1000),
       end: Math.floor(end.getTime() / 1000),
-      label: `This month (${formatDateLabel(start)} to ${formatDateLabel(end)})`,
+      label: `This month (${formatDateShort(start)} to ${formatDateShort(end)})`,
     };
   }
 
@@ -77,7 +78,7 @@ export function parseDateRange(rangeStr?: string): DateRange {
     return {
       start: Math.floor(start.getTime() / 1000),
       end: Math.floor(end.getTime() / 1000),
-      label: `${formatDateLabel(start)} to ${formatDateLabel(end)}`,
+      label: `${formatDateShort(start)} to ${formatDateShort(end)}`,
     };
   }
 
@@ -92,7 +93,7 @@ export function parseDateRange(rangeStr?: string): DateRange {
   return {
     start: Math.floor(start.getTime() / 1000),
     end: Math.floor(end.getTime() / 1000),
-    label: formatDateLabel(start),
+    label: formatDateShort(start),
   };
 }
 
@@ -107,7 +108,11 @@ function parseDate(dateStr: string): Date | null {
     return null;
   }
 
-  const [_, year, month, day] = match;
+  const [, year, month, day] = match;
+  if (!year || !month || !day) {
+    return null;
+  }
+
   const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
 
   // Validate the date is valid
@@ -116,15 +121,4 @@ function parseDate(dateStr: string): Date | null {
   }
 
   return date;
-}
-
-/**
- * Format date for display labels
- */
-function formatDateLabel(date: Date): string {
-  return date.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  });
 }

@@ -1,11 +1,18 @@
 import { test, expect, describe, beforeEach, afterEach } from 'bun:test';
 import { setDbPath, resetDb, getDb } from '../../lib/db';
 import { startTimer, createSession, getAllSessionsByTimer } from '../../lib/timer';
-import { getSessionDuration, formatDuration } from '../../lib/format';
+import {
+  getSessionDuration,
+  formatDuration,
+  formatDateShort,
+  formatDateLong,
+  formatTime,
+  formatDate,
+} from '../../lib/format';
 import { startOfDay, endOfDay } from 'date-fns';
 import type { TimerSession } from '../../lib/schemas';
 
-describe('status command', () => {
+describe('log command', () => {
   beforeEach(() => {
     // Use in-memory database for each test
     setDbPath(':memory:');
@@ -262,6 +269,127 @@ describe('status command', () => {
       // Must contain "60h", not "12h" or any smaller number
       expect(result).toContain('60h');
       expect(result).not.toContain('12h');
+    });
+  });
+
+  describe('formatTime', () => {
+    test('formats time in 24-hour format', () => {
+      // 14:30 on any day
+      const timestamp = new Date(2026, 0, 21, 14, 30, 0).getTime() / 1000;
+      const result = formatTime(timestamp);
+
+      expect(result).toBe('14:30');
+    });
+
+    test('formats midnight correctly', () => {
+      const timestamp = new Date(2026, 0, 21, 0, 0, 0).getTime() / 1000;
+      const result = formatTime(timestamp);
+
+      expect(result).toBe('00:00');
+    });
+
+    test('formats morning time with leading zero', () => {
+      const timestamp = new Date(2026, 0, 21, 9, 5, 0).getTime() / 1000;
+      const result = formatTime(timestamp);
+
+      expect(result).toBe('09:05');
+    });
+  });
+
+  describe('formatDate', () => {
+    test('formats date from timestamp', () => {
+      const timestamp = new Date(2026, 0, 21, 14, 30, 0).getTime() / 1000;
+      const result = formatDate(timestamp);
+
+      // Should be DD/MM/YYYY format (en-GB default, not American)
+      expect(result).toMatch(/21.*01.*2026/);
+      // Should NOT be American format MM/DD/YYYY
+      expect(result).not.toMatch(/^01.*21.*2026/);
+    });
+  });
+
+  describe('formatDateShort', () => {
+    test('formats date in short format', () => {
+      const date = new Date(2026, 0, 21);
+      const result = formatDateShort(date);
+
+      // Should contain day, month, year in some format
+      expect(result).toMatch(/21.*01.*2026/);
+      // Should NOT be American format
+      expect(result).not.toMatch(/^01.*21.*2026/);
+    });
+
+    test('formats single digit days and months with padding', () => {
+      const date = new Date(2026, 0, 5); // 5th January
+      const result = formatDateShort(date);
+
+      // Should have padded day and month
+      expect(result).toMatch(/05.*01.*2026/);
+    });
+  });
+
+  describe('formatDateLong', () => {
+    test('includes weekday in long format', () => {
+      const date = new Date(2026, 0, 21); // Wednesday
+      const result = formatDateLong(date);
+
+      // Should contain Wednesday (or locale equivalent)
+      expect(result.toLowerCase()).toContain('wednesday');
+    });
+
+    test('includes full month name', () => {
+      const date = new Date(2026, 0, 21); // January
+      const result = formatDateLong(date);
+
+      // Should contain January (or locale equivalent)
+      expect(result.toLowerCase()).toContain('january');
+    });
+
+    test('includes year', () => {
+      const date = new Date(2026, 0, 21);
+      const result = formatDateLong(date);
+
+      expect(result).toContain('2026');
+    });
+
+    test('day comes before month in output (not American format)', () => {
+      const date = new Date(2026, 0, 21);
+      const result = formatDateLong(date);
+
+      // In en-GB: "Wednesday, 21 January 2026"
+      // The day number (21) should come before the month name
+      const dayIndex = result.indexOf('21');
+      const monthIndex = result.toLowerCase().indexOf('january');
+
+      expect(dayIndex).toBeLessThan(monthIndex);
+    });
+  });
+
+  describe('date formatting never uses American format', () => {
+    test('formatDateShort does not use MM/DD/YYYY', () => {
+      // Test a date where day > 12 to catch American format
+      const date = new Date(2026, 0, 21); // 21st January
+      const result = formatDateShort(date);
+
+      // If it was American format, 21 would be in month position (invalid)
+      // or it would show as 01/21/2026
+      // We expect 21/01/2026 or similar non-American format
+      const parts = result.split(/[\/\.\-]/);
+      const firstPart = parts[0];
+
+      // First part should be the day (21), not month (01)
+      expect(firstPart).toBe('21');
+    });
+
+    test('formatDate does not use MM/DD/YYYY', () => {
+      const timestamp = new Date(2026, 0, 21).getTime() / 1000;
+      const result = formatDate(timestamp);
+
+      const parts = result.split(/[\/\.\-]/);
+      const firstPart = parts[0];
+
+      // First part should be the day (21), not month (01)
+      expect(firstPart).toBe('21');
     });
   });
 });
