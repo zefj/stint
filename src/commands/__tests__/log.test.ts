@@ -9,8 +9,9 @@ import {
   formatTime,
   formatDate,
 } from '../../lib/format';
+import { generateLogOutput } from '../log';
 import { startOfDay, endOfDay } from 'date-fns';
-import type { TimerSession } from '../../lib/schemas';
+import type { TimerSession, Timer } from '../../lib/schemas';
 
 describe('log command', () => {
   beforeEach(() => {
@@ -390,6 +391,207 @@ describe('log command', () => {
 
       // First part should be the day (21), not month (01)
       expect(firstPart).toBe('21');
+    });
+  });
+
+  describe('generateLogOutput', () => {
+    test('returns no sessions message when empty', () => {
+      const sessionsByTimer = new Map<Timer, TimerSession[]>();
+      const output = generateLogOutput(sessionsByTimer, 'Today', { useColor: false });
+
+      expect(output).toHaveLength(1);
+      expect(output[0]).toBe('No sessions found for Today');
+    });
+
+    test('shows single timer without per-timer breakdown', () => {
+      const now = Math.floor(Date.now() / 1000);
+      const timer: Timer = { id: 't1', name: 'work', color: '#fff', createdAt: now };
+      const session: TimerSession = {
+        id: 's1',
+        timerId: 't1',
+        start: now - 3600,
+        end: now,
+        createdAt: now,
+      };
+
+      const sessionsByTimer = new Map<Timer, TimerSession[]>();
+      sessionsByTimer.set(timer, [session]);
+
+      const output = generateLogOutput(sessionsByTimer, 'Today', { useColor: false });
+      const text = output.join('\n');
+
+      // Should have "Total: 1h" but NOT "Total work: 1h"
+      expect(text).toContain('Total: 1h');
+      expect(text).not.toContain('Total work:');
+    });
+
+    test('shows multiple timers with per-timer breakdown', () => {
+      const now = Math.floor(Date.now() / 1000);
+      const workTimer: Timer = { id: 't1', name: 'work', color: '#fff', createdAt: now };
+      const musicTimer: Timer = { id: 't2', name: 'music', color: '#fff', createdAt: now };
+
+      const workSession: TimerSession = {
+        id: 's1',
+        timerId: 't1',
+        start: now - 7200,
+        end: now - 3600,
+        createdAt: now,
+      };
+      const musicSession: TimerSession = {
+        id: 's2',
+        timerId: 't2',
+        start: now - 3600,
+        end: now,
+        createdAt: now,
+      };
+
+      const sessionsByTimer = new Map<Timer, TimerSession[]>();
+      sessionsByTimer.set(workTimer, [workSession]);
+      sessionsByTimer.set(musicTimer, [musicSession]);
+
+      const output = generateLogOutput(sessionsByTimer, 'Today', { useColor: false });
+      const text = output.join('\n');
+
+      // Should have per-timer breakdown
+      expect(text).toContain('Total work: 1h');
+      expect(text).toContain('Total music: 1h');
+      expect(text).toContain('Total: 2h');
+    });
+
+    test('shows running session with → now', () => {
+      const now = Math.floor(Date.now() / 1000);
+      const timer: Timer = { id: 't1', name: 'work', color: '#fff', createdAt: now };
+      const session: TimerSession = {
+        id: 's1',
+        timerId: 't1',
+        start: now - 3600,
+        end: null, // Running
+        createdAt: now,
+      };
+
+      const sessionsByTimer = new Map<Timer, TimerSession[]>();
+      sessionsByTimer.set(timer, [session]);
+
+      const output = generateLogOutput(sessionsByTimer, 'Today', { useColor: false });
+      const text = output.join('\n');
+
+      expect(text).toContain('→ now');
+    });
+
+    test('shows session times in correct format', () => {
+      // Create a session from 09:00 to 17:00
+      const date = new Date(2026, 0, 21, 9, 0, 0);
+      const start = Math.floor(date.getTime() / 1000);
+      const end = start + 8 * 3600; // 8 hours later = 17:00
+
+      const timer: Timer = { id: 't1', name: 'work', color: '#fff', createdAt: start };
+      const session: TimerSession = {
+        id: 's1',
+        timerId: 't1',
+        start,
+        end,
+        createdAt: start,
+      };
+
+      const sessionsByTimer = new Map<Timer, TimerSession[]>();
+      sessionsByTimer.set(timer, [session]);
+
+      const output = generateLogOutput(sessionsByTimer, 'Today', { useColor: false });
+      const text = output.join('\n');
+
+      expect(text).toContain('09:00 - 17:00');
+      expect(text).toContain('(8h)');
+    });
+
+    test('shows day total for each day', () => {
+      const now = Math.floor(Date.now() / 1000);
+      const timer: Timer = { id: 't1', name: 'work', color: '#fff', createdAt: now };
+      const session: TimerSession = {
+        id: 's1',
+        timerId: 't1',
+        start: now - 7200,
+        end: now,
+        createdAt: now,
+      };
+
+      const sessionsByTimer = new Map<Timer, TimerSession[]>();
+      sessionsByTimer.set(timer, [session]);
+
+      const output = generateLogOutput(sessionsByTimer, 'Today', { useColor: false });
+      const text = output.join('\n');
+
+      // Should have a day total line
+      expect(text).toMatch(/Total: 2h/);
+    });
+
+    test('sorts sessions by start time within a day', () => {
+      const baseDate = new Date(2026, 0, 21, 0, 0, 0);
+      const dayStart = Math.floor(baseDate.getTime() / 1000);
+
+      const timer: Timer = { id: 't1', name: 'work', color: '#fff', createdAt: dayStart };
+
+      // Create sessions out of order
+      const afternoon: TimerSession = {
+        id: 's2',
+        timerId: 't1',
+        start: dayStart + 14 * 3600, // 14:00
+        end: dayStart + 17 * 3600,   // 17:00
+        createdAt: dayStart,
+      };
+      const morning: TimerSession = {
+        id: 's1',
+        timerId: 't1',
+        start: dayStart + 9 * 3600,  // 09:00
+        end: dayStart + 12 * 3600,   // 12:00
+        createdAt: dayStart,
+      };
+
+      const sessionsByTimer = new Map<Timer, TimerSession[]>();
+      sessionsByTimer.set(timer, [afternoon, morning]); // Out of order
+
+      const output = generateLogOutput(sessionsByTimer, 'Today', { useColor: false });
+      const text = output.join('\n');
+
+      // Morning should appear before afternoon in output
+      const morningIndex = text.indexOf('09:00');
+      const afternoonIndex = text.indexOf('14:00');
+
+      expect(morningIndex).toBeLessThan(afternoonIndex);
+    });
+
+    test('sorts timers alphabetically', () => {
+      const now = Math.floor(Date.now() / 1000);
+
+      const zTimer: Timer = { id: 't2', name: 'zebra', color: '#fff', createdAt: now };
+      const aTimer: Timer = { id: 't1', name: 'apple', color: '#fff', createdAt: now };
+
+      const zSession: TimerSession = {
+        id: 's2',
+        timerId: 't2',
+        start: now - 3600,
+        end: now,
+        createdAt: now,
+      };
+      const aSession: TimerSession = {
+        id: 's1',
+        timerId: 't1',
+        start: now - 7200,
+        end: now - 3600,
+        createdAt: now,
+      };
+
+      const sessionsByTimer = new Map<Timer, TimerSession[]>();
+      sessionsByTimer.set(zTimer, [zSession]);
+      sessionsByTimer.set(aTimer, [aSession]);
+
+      const output = generateLogOutput(sessionsByTimer, 'Today', { useColor: false });
+      const text = output.join('\n');
+
+      // Apple should appear before zebra
+      const appleIndex = text.indexOf('apple');
+      const zebraIndex = text.indexOf('zebra');
+
+      expect(appleIndex).toBeLessThan(zebraIndex);
     });
   });
 });

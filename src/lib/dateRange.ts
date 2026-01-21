@@ -1,4 +1,4 @@
-import { startOfDay, endOfDay, subDays, startOfMonth, endOfMonth } from 'date-fns';
+import { startOfDay, endOfDay, subDays, subMonths, startOfMonth, endOfMonth } from 'date-fns';
 import { formatDateShort } from './format';
 
 export type DateRange = {
@@ -58,6 +58,17 @@ export function parseDateRange(rangeStr?: string): DateRange {
     };
   }
 
+  if (range === 'lastmonth') {
+    const lastMonth = subMonths(now, 1);
+    const start = startOfMonth(lastMonth);
+    const end = endOfMonth(lastMonth);
+    return {
+      start: Math.floor(start.getTime() / 1000),
+      end: Math.floor(end.getTime() / 1000),
+      label: `Last month (${formatDateShort(start)} to ${formatDateShort(end)})`,
+    };
+  }
+
   // Handle date range: YYYY-MM-DD..YYYY-MM-DD
   if (range.includes('..')) {
     const [startStr, endStr] = range.split('..');
@@ -85,7 +96,7 @@ export function parseDateRange(rangeStr?: string): DateRange {
   // Handle single date: YYYY-MM-DD
   const date = parseDate(range);
   if (!date) {
-    throw new Error(`Invalid date range: ${rangeStr}. Use: today, yesterday, week, month, YYYY-MM-DD, or YYYY-MM-DD..YYYY-MM-DD`);
+    throw new Error(`Invalid date range: ${rangeStr}. Use: today, yesterday, week, month, lastmonth, YYYY-MM-DD, or YYYY-MM-DD..YYYY-MM-DD`);
   }
 
   const start = startOfDay(date);
