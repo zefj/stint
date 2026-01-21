@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Box, Text, useInput, useApp } from 'ink';
 import {
   startOfMonth,
@@ -9,8 +9,6 @@ import {
   addMonths,
   subMonths,
   isSameDay,
-  startOfDay,
-  endOfDay,
 } from 'date-fns';
 import { DayEntryView } from './DayEntryView';
 
@@ -21,16 +19,28 @@ type Session = {
 
 type Props = {
   timerName: string;
-  onSave: (sessions: Session[]) => void;
-  onCancel: () => void;
+  existingSessions?: Session[];
+  onCreateSession: (start: number, end: number) => void;
+  onDone: () => void;
 };
 
-export function CalendarView({ timerName, onSave, onCancel }: Props) {
+export function CalendarView({ timerName, existingSessions = [], onCreateSession, onDone }: Props) {
   const { exit } = useApp();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [sessions, setSessions] = useState<Map<string, Session[]>>(new Map());
+  const [createdSessions, setCreatedSessions] = useState<Session[]>([]);
   const [mode, setMode] = useState<'calendar' | 'day'>('calendar');
+
+  // Combine existing and newly created sessions
+  const allSessions = [...existingSessions, ...createdSessions];
+
+  // Build set of days with sessions
+  const sessionsByDay = new Map<string, Session[]>();
+  for (const session of allSessions) {
+    const dateKey = format(new Date(session.start * 1000), 'yyyy-MM-dd');
+    const existing = sessionsByDay.get(dateKey) || [];
+    sessionsByDay.set(dateKey, [...existing, session]);
+  }
 
   // Generate calendar days for current month
   const monthStart = startOfMonth(currentMonth);
@@ -46,25 +56,29 @@ export function CalendarView({ timerName, onSave, onCancel }: Props) {
       // Navigation in calendar mode
       if (key.leftArrow) {
         const currentIndex = daysInMonth.findIndex((d) => isSameDay(d, selectedDate));
-        if (currentIndex > 0) {
-          setSelectedDate(daysInMonth[currentIndex - 1]);
+        const newDate = daysInMonth[currentIndex - 1];
+        if (currentIndex > 0 && newDate) {
+          setSelectedDate(newDate);
         }
       } else if (key.rightArrow) {
         const currentIndex = daysInMonth.findIndex((d) => isSameDay(d, selectedDate));
-        if (currentIndex < daysInMonth.length - 1) {
-          setSelectedDate(daysInMonth[currentIndex + 1]);
+        const newDate = daysInMonth[currentIndex + 1];
+        if (currentIndex < daysInMonth.length - 1 && newDate) {
+          setSelectedDate(newDate);
         }
       } else if (key.upArrow) {
         const currentIndex = daysInMonth.findIndex((d) => isSameDay(d, selectedDate));
         const newIndex = currentIndex - 7;
-        if (newIndex >= 0) {
-          setSelectedDate(daysInMonth[newIndex]);
+        const newDate = daysInMonth[newIndex];
+        if (newIndex >= 0 && newDate) {
+          setSelectedDate(newDate);
         }
       } else if (key.downArrow) {
         const currentIndex = daysInMonth.findIndex((d) => isSameDay(d, selectedDate));
         const newIndex = currentIndex + 7;
-        if (newIndex < daysInMonth.length) {
-          setSelectedDate(daysInMonth[newIndex]);
+        const newDate = daysInMonth[newIndex];
+        if (newIndex < daysInMonth.length && newDate) {
+          setSelectedDate(newDate);
         }
       } else if (input === 'n') {
         // Next month
@@ -79,30 +93,28 @@ export function CalendarView({ timerName, onSave, onCancel }: Props) {
       } else if (key.return) {
         // Enter day view
         setMode('day');
-      } else if (key.escape) {
-        // Save and exit
-        const allSessions: Session[] = [];
-        sessions.forEach((daySessions) => {
-          allSessions.push(...daySessions);
-        });
-        onSave(allSessions);
+      } else if (key.escape || input === 'q') {
+        // Done - exit
+        onDone();
         exit();
       }
     }
   });
 
-  // Calculate total sessions and hours for the month
-  let totalDays = 0;
-  let totalHours = 0;
-  sessions.forEach((daySessions, dateKey) => {
+  // Calculate existing sessions in current month
+  let existingDays = 0;
+  let existingHours = 0;
+  sessionsByDay.forEach((daySessions, dateKey) => {
     const date = new Date(dateKey);
     if (
       date.getMonth() === currentMonth.getMonth() &&
       date.getFullYear() === currentMonth.getFullYear()
     ) {
-      totalDays += 1;
+      existingDays += 1;
       daySessions.forEach((session) => {
-        totalHours += (session.end - session.start) / 3600;
+        if (session.end) {
+          existingHours += (session.end - session.start) / 3600;
+        }
       });
     }
   });
@@ -124,7 +136,7 @@ export function CalendarView({ timerName, onSave, onCancel }: Props) {
     // Add days
     daysInMonth.forEach((day, index) => {
       const dateKey = format(day, 'yyyy-MM-dd');
-      const hasSessions = sessions.has(dateKey);
+      const hasSessions = sessionsByDay.has(dateKey);
       const isSelected = isSameDay(day, selectedDate);
       const dayNum = format(day, 'd');
 
@@ -134,7 +146,11 @@ export function CalendarView({ timerName, onSave, onCancel }: Props) {
 
       week.push(
         <Box key={index} width={6}>
-          <Text color={isSelected ? 'cyan' : undefined} inverse={isSelected}>
+          <Text
+            color={isSelected ? 'cyan' : hasSessions ? 'green' : undefined}
+            inverse={isSelected}
+            bold={hasSessions}
+          >
             {displayText}
           </Text>
         </Box>
@@ -156,24 +172,16 @@ export function CalendarView({ timerName, onSave, onCancel }: Props) {
 
   if (mode === 'day') {
     const dateKey = format(selectedDate, 'yyyy-MM-dd');
-    const daySessions = sessions.get(dateKey) || [];
+    const daySessions = sessionsByDay.get(dateKey) || [];
 
     return (
       <DayEntryView
         date={selectedDate}
-        sessions={daySessions}
+        existingSessions={daySessions}
         onAddSession={(session) => {
-          const newSessions = new Map(sessions);
-          const existing = newSessions.get(dateKey) || [];
-          newSessions.set(dateKey, [...existing, session]);
-          setSessions(newSessions);
-          setMode('calendar'); // Return to calendar after adding
-        }}
-        onClearSessions={() => {
-          const newSessions = new Map(sessions);
-          newSessions.delete(dateKey);
-          setSessions(newSessions);
-          setMode('calendar'); // Return to calendar after clearing
+          onCreateSession(session.start, session.end);
+          setCreatedSessions((prev) => [...prev, session]);
+          setMode('calendar');
         }}
         onBack={() => setMode('calendar')}
       />
@@ -202,16 +210,15 @@ export function CalendarView({ timerName, onSave, onCancel }: Props) {
       </Box>
 
       <Box marginTop={1} flexDirection="column">
-        <Text dimColor>Navigation:</Text>
-        <Text dimColor>  ←↑↓→    Navigate days</Text>
-        <Text dimColor>  n / p   Next / Previous month</Text>
-        <Text dimColor>  Enter   Add/Edit session for selected day</Text>
-        <Text dimColor>  Esc     Save all sessions and quit</Text>
-        <Text dimColor></Text>
+        <Text dimColor>←↑↓→ Navigate   n/p: Next/Prev month   Enter: Add session   q: Done</Text>
+        <Text> </Text>
+        <Text color="green">• = has sessions</Text>
         <Text>
-          Sessions this month: {totalDays} {totalDays === 1 ? 'day' : 'days'},{' '}
-          {Math.round(totalHours)}h total
+          {existingDays} {existingDays === 1 ? 'day' : 'days'} this month, {Math.round(existingHours)}h total
         </Text>
+        {createdSessions.length > 0 && (
+          <Text color="green">✓ Created {createdSessions.length} {createdSessions.length === 1 ? 'session' : 'sessions'}</Text>
+        )}
       </Box>
     </Box>
   );

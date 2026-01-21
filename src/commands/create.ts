@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import React from 'react';
 import { render } from 'ink';
-import { createSession } from '../lib/timer';
+import { createSession, getSessionsForTimer } from '../lib/timer';
 import { formatDuration, getSessionDuration } from '../lib/format';
 import { CalendarView } from '../tui/CalendarView';
 
@@ -33,71 +33,54 @@ export const createCommand = new Command('create')
   .argument('<timer>', 'timer name')
   .argument('[from]', 'start datetime (ISO 8601: YYYY-MM-DDTHH:MM)')
   .argument('[to]', 'end datetime (ISO 8601: YYYY-MM-DDTHH:MM)')
-  .option('-i, --interactive', 'interactive calendar mode')
   .description('Create manual timer sessions')
-  .action(async (timerName: string, from?: string, to?: string, options?: { interactive?: boolean }) => {
+  .action(async (timerName: string, from?: string, to?: string) => {
     try {
-      // Interactive mode
-      if (options?.interactive) {
-        const { waitUntilExit } = render(
-          React.createElement(CalendarView, {
-            timerName,
-            onSave: (sessions) => {
-              if (sessions.length === 0) {
-                console.log('No sessions to save.');
-                return;
-              }
+      // Direct mode: both from and to provided
+      if (from && to) {
+        const startTime = parseDateTime(from);
+        const endTime = parseDateTime(to);
 
-              // Create all sessions
-              let created = 0;
-              let totalDuration = 0;
-              for (const session of sessions) {
-                try {
-                  createSession(timerName, session.start, session.end);
-                  created++;
-                  totalDuration += session.end - session.start;
-                } catch (error) {
-                  console.error(`Failed to create session: ${error}`);
-                }
-              }
+        const session = createSession(timerName, startTime, endTime);
+        const duration = getSessionDuration(session);
 
-              const hours = Math.floor(totalDuration / 3600);
-              const minutes = Math.floor((totalDuration % 3600) / 60);
-              console.log(
-                `✓ Created ${created} ${created === 1 ? 'session' : 'sessions'} for "${timerName}" (${hours}h${minutes > 0 ? ` ${minutes}m` : ''} total)`
-              );
-            },
-            onCancel: () => {
-              console.log('Cancelled');
-            },
-          })
+        console.log(
+          `✓ Created session for "${timerName}": ${from} - ${to} (${formatDuration(duration)})`
         );
-
-        await waitUntilExit();
         return;
       }
 
-      // Direct mode: both from and to required
-      if (!from || !to) {
-        console.error('✗ Direct mode requires both FROM and TO arguments');
+      // Partial args error
+      if (from && !to) {
+        console.error('✗ Both FROM and TO arguments are required for direct mode');
         console.error('  Usage: stint create <timer> <from> <to>');
         console.error('  Example: stint create work 2025-12-28T09:00 2025-12-28T17:00');
-        console.error('');
-        console.error('  Or use interactive mode: stint create <timer> --interactive');
         process.exit(1);
       }
 
-      // Parse datetime strings to Unix timestamps
-      const startTime = parseDateTime(from);
-      const endTime = parseDateTime(to);
+      // Interactive mode (default when no time args)
+      // Fetch existing sessions for this timer
+      const existingSessions = getSessionsForTimer(timerName).map((s) => ({
+        start: s.start,
+        end: s.end ?? Math.floor(Date.now() / 1000),
+      }));
 
-      // Create the session
-      const session = createSession(timerName, startTime, endTime);
-      const duration = getSessionDuration(session);
-
-      console.log(
-        `✓ Created session for "${timerName}": ${from} - ${to} (${formatDuration(duration)})`
+      const { waitUntilExit } = render(
+        React.createElement(CalendarView, {
+          timerName,
+          existingSessions,
+          onCreateSession: (start: number, end: number) => {
+            const session = createSession(timerName, start, end);
+            const duration = getSessionDuration(session);
+            console.log(`✓ Created session for "${timerName}" (${formatDuration(duration)})`);
+          },
+          onDone: () => {
+            // Nothing to do - sessions already created
+          },
+        })
       );
+
+      await waitUntilExit();
     } catch (error) {
       if (error instanceof Error) {
         console.error(`✗ ${error.message}`);

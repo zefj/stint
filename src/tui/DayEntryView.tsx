@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { format, setHours, setMinutes, startOfDay } from 'date-fns';
 
@@ -9,13 +9,12 @@ type Session = {
 
 type Props = {
   date: Date;
-  sessions: Session[];
+  existingSessions?: Session[];
   onAddSession: (session: Session) => void;
-  onClearSessions: () => void;
   onBack: () => void;
 };
 
-export function DayEntryView({ date, sessions, onAddSession, onClearSessions, onBack }: Props) {
+export function DayEntryView({ date, existingSessions = [], onAddSession, onBack }: Props) {
   const [input, setInput] = useState('');
   const [error, setError] = useState('');
 
@@ -49,14 +48,6 @@ export function DayEntryView({ date, sessions, onAddSession, onClearSessions, on
     }
 
     const trimmed = input.trim().toLowerCase();
-
-    // Clear command
-    if (trimmed === 'c') {
-      onClearSessions();
-      setInput('');
-      setError('');
-      return;
-    }
 
     // Quick shortcuts
     if (trimmed === '8') {
@@ -94,11 +85,10 @@ export function DayEntryView({ date, sessions, onAddSession, onClearSessions, on
       return;
     }
 
-    const [_, startHour, startMin, endHour, endMin] = match;
-    const startH = parseInt(startHour, 10);
-    const startM = parseInt(startMin, 10);
-    const endH = parseInt(endHour, 10);
-    const endM = parseInt(endMin, 10);
+    const startH = parseInt(match[1]!, 10);
+    const startM = parseInt(match[2]!, 10);
+    const endH = parseInt(match[3]!, 10);
+    const endM = parseInt(match[4]!, 10);
 
     // Validate hours and minutes
     if (startH < 0 || startH > 23 || endH < 0 || endH > 23) {
@@ -127,51 +117,37 @@ export function DayEntryView({ date, sessions, onAddSession, onClearSessions, on
     setError('');
   };
 
-  // Calculate total hours for the day
-  const totalSeconds = sessions.reduce((total, session) => {
-    return total + (session.end - session.start);
-  }, 0);
-  const totalHours = Math.floor(totalSeconds / 3600);
-  const totalMinutes = Math.floor((totalSeconds % 3600) / 60);
-
   return (
     <Box flexDirection="column" padding={1}>
       <Text bold>{format(date, 'EEEE, MMMM d, yyyy')}</Text>
-      <Text></Text>
+      <Text> </Text>
 
-      {sessions.length > 0 ? (
+      {existingSessions.length > 0 ? (
         <>
-          <Text>Current sessions:</Text>
-          {sessions.map((session, index) => {
+          <Text>Existing sessions:</Text>
+          {existingSessions.map((session, index) => {
             const startTime = format(new Date(session.start * 1000), 'HH:mm');
-            const endTime = format(new Date(session.end * 1000), 'HH:mm');
-            const duration = Math.floor((session.end - session.start) / 3600);
-            const durationMin = Math.floor(((session.end - session.start) % 3600) / 60);
+            const endTime = session.end ? format(new Date(session.end * 1000), 'HH:mm') : 'now';
+            const duration = session.end ? Math.floor((session.end - session.start) / 3600) : 0;
+            const durationMin = session.end ? Math.floor(((session.end - session.start) % 3600) / 60) : 0;
             return (
-              <Text key={index}>
-                  {index + 1}. {startTime} - {endTime}  ({duration}h{durationMin > 0 ? ` ${durationMin}m` : ''})
+              <Text key={`existing-${index}`} dimColor>
+                  • {startTime} - {endTime}  ({duration}h{durationMin > 0 ? ` ${durationMin}m` : ''})
               </Text>
             );
           })}
-          <Text>
-            Total: {totalHours}h{totalMinutes > 0 ? ` ${totalMinutes}m` : ''}
-          </Text>
-          <Text></Text>
+          <Text> </Text>
         </>
       ) : (
         <>
-          <Text dimColor>No sessions yet for this day</Text>
-          <Text></Text>
+          <Text dimColor>No sessions for this day</Text>
+          <Text> </Text>
         </>
       )}
 
-      <Text>Add session:</Text>
-      <Text dimColor>  Type:  HH:MM-HH:MM  (e.g., "14:00-16:00")</Text>
-      <Text dimColor>  Quick: 8            (09:00-17:00, 8 hours)</Text>
-      <Text dimColor>         4            (09:00-13:00, 4 hours)</Text>
-      <Text dimColor>  Clear: c            (delete all sessions for this day)</Text>
-      <Text dimColor>  Back:  Esc          (return to calendar)</Text>
-      <Text></Text>
+      <Text>Add session (HH:MM-HH:MM):</Text>
+      <Text dimColor>Shortcuts: 8=full day (09-17)  4=half day (09-13)  Esc=back</Text>
+      <Text> </Text>
 
       <Text>
         &gt; <Text color="cyan">{input}</Text>

@@ -311,3 +311,18 @@ export function deleteSession(sessionId: string): void {
   }
   queries.deleteSession().run(sessionId);
 }
+
+/**
+ * Get all sessions for a specific timer
+ */
+export function getSessionsForTimer(timerName: string): TimerSession[] {
+  const timer = getTimerByName(timerName);
+  if (!timer) return [];
+
+  const db = getDb();
+  const results = db
+    .query<any, [string]>('SELECT * FROM timer_sessions WHERE timer_id = ? ORDER BY start DESC')
+    .all(timer.id);
+
+  return results.map((row: any) => TimerSessionSchema.parse(sessionFromRow(row)));
+}
