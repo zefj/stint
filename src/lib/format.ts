@@ -103,3 +103,26 @@ export function formatDateLong(date: Date): string {
     day: 'numeric',
   });
 }
+
+/**
+ * Parse HH:MM time string and combine with today's date
+ * Returns Unix timestamp in seconds
+ */
+export function parseTimeToday(timeStr: string): number {
+  const match = timeStr.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) {
+    throw new Error(`Invalid time format: ${timeStr}. Use HH:MM (e.g., 09:30, 14:00)`);
+  }
+
+  const hours = parseInt(match[1]!, 10);
+  const minutes = parseInt(match[2]!, 10);
+
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+    throw new Error(`Invalid time: ${timeStr}. Hours must be 0-23, minutes 0-59.`);
+  }
+
+  const now = new Date();
+  const target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes, 0);
+
+  return Math.floor(target.getTime() / 1000);
+}

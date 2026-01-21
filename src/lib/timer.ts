@@ -46,8 +46,13 @@ export function createTimer(name: string, color: string = '#f5f5f4'): Timer {
  * Start a timer (creates session)
  * Auto-creates timer if it doesn't exist
  * Returns { session, created } where created = true if timer was just created
+ * @param timerName - Name of the timer to start
+ * @param startAt - Optional Unix timestamp to start at (for retroactive entry)
  */
-export function startTimer(timerName: string): { session: TimerSession; created: boolean } {
+export function startTimer(
+  timerName: string,
+  startAt?: number
+): { session: TimerSession; created: boolean } {
   let timer = getTimerByName(timerName);
   let created = false;
 
@@ -63,11 +68,30 @@ export function startTimer(timerName: string): { session: TimerSession; created:
     throw new Error(`Timer "${timerName}" is already running`);
   }
 
+  // Determine start time
+  const startTimestamp = startAt ?? Math.floor(Date.now() / 1000);
+
+  // Validate: cannot start before the latest end across ALL sessions
+  if (startAt) {
+    const latestEnd = getLatestEndTimestamp();
+    if (latestEnd && startTimestamp < latestEnd) {
+      const latestEndDate = new Date(latestEnd * 1000);
+      const latestEndFormatted = latestEndDate.toLocaleTimeString('en-GB', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      });
+      throw new Error(
+        `Cannot start at specified time - latest session ended at ${latestEndFormatted}. ` +
+          `Start time must be after the last stop event.`
+      );
+    }
+  }
+
   // Create new session
-  const now = Math.floor(Date.now() / 1000);
   const sessionId = nanoid();
 
-  queries.startSession().run(sessionId, timer.id, now);
+  queries.startSession().run(sessionId, timer.id, startTimestamp);
 
   const db = getDb();
   const result = db.query('SELECT * FROM timer_sessions WHERE id = ?').get(sessionId);
@@ -83,8 +107,10 @@ export function startTimer(timerName: string): { session: TimerSession; created:
 
 /**
  * Stop a timer (ends active session)
+ * @param timerName - Name of the timer to stop
+ * @param stopAt - Optional Unix timestamp to stop at (for retroactive entry)
  */
-export function stopTimer(timerName: string): TimerSession {
+export function stopTimer(timerName: string, stopAt?: number): TimerSession {
   const timer = getTimerByName(timerName);
 
   if (!timer) {
@@ -97,9 +123,24 @@ export function stopTimer(timerName: string): TimerSession {
     throw new Error(`Timer "${timerName}" is not running`);
   }
 
+  // Determine stop time
+  const stopTimestamp = stopAt ?? Math.floor(Date.now() / 1000);
+
+  // Validate: stop time must be after session start
+  if (stopAt && stopTimestamp <= activeSession.start) {
+    const startDate = new Date(activeSession.start * 1000);
+    const startFormatted = startDate.toLocaleTimeString('en-GB', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+    throw new Error(
+      `Stop time is before or equal to start time. Session started at ${startFormatted}.`
+    );
+  }
+
   // Stop the session
-  const now = Math.floor(Date.now() / 1000);
-  queries.stopSession().run(now, activeSession.id);
+  queries.stopSession().run(stopTimestamp, activeSession.id);
 
   const db = getDb();
   const result = db.query('SELECT * FROM timer_sessions WHERE id = ?').get(activeSession.id);
@@ -193,6 +234,18 @@ export function getSessionsByTimer(startTime: number, endTime: number): Map<Time
   }
 
   return sessionsByTimer;
+}
+
+/**
+ * Get the latest end timestamp across ALL sessions
+ * Used to validate that new start times don't overlap with history
+ */
+export function getLatestEndTimestamp(): number | null {
+  const db = getDb();
+  const result = db
+    .query<{ max_end: number | null }, []>('SELECT MAX(end) as max_end FROM timer_sessions WHERE end IS NOT NULL')
+    .get();
+  return result?.max_end ?? null;
 }
 
 /**

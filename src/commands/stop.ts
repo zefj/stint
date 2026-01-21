@@ -2,16 +2,20 @@ import { Command } from 'commander';
 import { select } from '@inquirer/prompts';
 import { stopTimer, getTimersWithActiveSessions } from '../lib/timer';
 import { getChalkColor } from '../lib/colors';
-import { formatTime, formatDuration, getSessionDuration } from '../lib/format';
+import { formatTime, formatDuration, getSessionDuration, parseTimeToday } from '../lib/format';
 
 export const stopCommand = new Command('stop')
   .argument('[timer]', 'timer name')
+  .argument('[time]', 'stop time (HH:MM) - defaults to now')
   .description('Stop a timer')
-  .action(async (timerName?: string) => {
+  .action(async (timerName?: string, timeArg?: string) => {
     try {
+      // Parse optional stop time
+      const stopAt = timeArg ? parseTimeToday(timeArg) : undefined;
+
       // If timer name provided, stop it directly
       if (timerName) {
-        const session = stopTimer(timerName);
+        const session = stopTimer(timerName, stopAt);
         const duration = getSessionDuration(session);
         console.log(
           `✓ Stopped "${timerName}" timer at ${formatTime(session.end!)} (${formatDuration(duration)})`
@@ -30,8 +34,8 @@ export const stopCommand = new Command('stop')
 
       // Smart shortcut: if only 1 timer is running, stop it immediately
       if (runningTimers.length === 1) {
-        const timer = runningTimers[0];
-        const session = stopTimer(timer.name);
+        const timer = runningTimers[0]!;
+        const session = stopTimer(timer.name, stopAt);
         const duration = getSessionDuration(session);
         console.log(
           `✓ Stopped "${timer.name}" timer at ${formatTime(session.end!)} (${formatDuration(duration)})  (only timer running)`
@@ -57,7 +61,7 @@ export const stopCommand = new Command('stop')
       });
 
       // Stop selected timer
-      const session = stopTimer(selected);
+      const session = stopTimer(selected, stopAt);
       const duration = getSessionDuration(session);
       console.log(
         `✓ Stopped "${selected}" timer at ${formatTime(session.end!)} (${formatDuration(duration)})`

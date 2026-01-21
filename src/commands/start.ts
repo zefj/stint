@@ -3,16 +3,20 @@ import { select, input } from '@inquirer/prompts';
 import { startTimer, getAllTimers, getTimerByName } from '../lib/timer';
 import { queries } from '../lib/db';
 import { getChalkColor } from '../lib/colors';
-import { formatTime } from '../lib/format';
+import { formatTime, parseTimeToday } from '../lib/format';
 
 export const startCommand = new Command('start')
   .argument('[timer]', 'timer name')
+  .argument('[time]', 'start time (HH:MM) - defaults to now')
   .description('Start a timer')
-  .action(async (timerName?: string) => {
+  .action(async (timerName?: string, timeArg?: string) => {
     try {
+      // Parse optional start time
+      const startAt = timeArg ? parseTimeToday(timeArg) : undefined;
+
       // If timer name provided, start it directly
       if (timerName) {
-        const { session, created } = startTimer(timerName);
+        const { session, created } = startTimer(timerName, startAt);
         const prefix = created ? 'Created and started' : 'Started';
         console.log(`✓ ${prefix} "${timerName}" timer at ${formatTime(session.start)}`);
         return;
@@ -23,9 +27,9 @@ export const startCommand = new Command('start')
 
       // Smart shortcut: if only 1 timer exists, start it immediately
       if (allTimers.length === 1) {
-        const timer = allTimers[0];
+        const timer = allTimers[0]!;
         try {
-          const { session } = startTimer(timer.name);
+          const { session } = startTimer(timer.name, startAt);
           console.log(
             `✓ Started "${timer.name}" timer at ${formatTime(session.start)}  (only timer available)`
           );
@@ -76,7 +80,7 @@ export const startCommand = new Command('start')
           },
         });
 
-        const { session } = startTimer(newTimerName);
+        const { session } = startTimer(newTimerName, startAt);
         console.log(
           `✓ Created and started "${newTimerName}" timer at ${formatTime(session.start)}`
         );
@@ -84,7 +88,7 @@ export const startCommand = new Command('start')
       }
 
       // Start selected timer
-      const { session } = startTimer(selected);
+      const { session } = startTimer(selected, startAt);
       console.log(`✓ Started "${selected}" timer at ${formatTime(session.start)}`);
     } catch (error) {
       if (error instanceof Error) {
