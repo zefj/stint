@@ -11,15 +11,40 @@ const DB_PATH = join(DB_DIR, 'stint.db');
 
 // Singleton database instance
 let _db: Database | null = null;
+let _customDbPath: string | null = null;
+
+/**
+ * Set a custom database path (for testing)
+ * Use ':memory:' for in-memory database
+ */
+export function setDbPath(path: string | null): void {
+  _customDbPath = path;
+  _db = null; // Reset singleton so next getDb() uses new path
+}
+
+/**
+ * Reset the database singleton (for testing)
+ */
+export function resetDb(): void {
+  if (_db) {
+    _db.close();
+    _db = null;
+  }
+}
 
 export function getDb(): Database {
   if (!_db) {
-    // Ensure directory exists
-    if (!existsSync(DB_DIR)) {
-      mkdirSync(DB_DIR, { recursive: true });
+    const dbPath = _customDbPath ?? DB_PATH;
+    const isMemory = dbPath === ':memory:';
+
+    // Ensure directory exists (unless in-memory)
+    if (!isMemory && !_customDbPath) {
+      if (!existsSync(DB_DIR)) {
+        mkdirSync(DB_DIR, { recursive: true });
+      }
     }
 
-    _db = new Database(DB_PATH, { create: true });
+    _db = new Database(dbPath, { create: true });
     _db.exec('PRAGMA foreign_keys = ON');
 
     // Run migrations on first initialization

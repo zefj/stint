@@ -194,3 +194,47 @@ export function getSessionsByTimer(startTime: number, endTime: number): Map<Time
 
   return sessionsByTimer;
 }
+
+/**
+ * Get all sessions in a date range INCLUDING active (running) sessions
+ * Returns sessions grouped by timer
+ */
+export function getAllSessionsByTimer(startTime: number, endTime: number): Map<Timer, TimerSession[]> {
+  const db = getDb();
+
+  // Get all sessions in range (completed AND active)
+  // Active sessions: started within range OR started before range and still running
+  const results = db
+    .query<any, [number, number, number]>(
+      `SELECT * FROM timer_sessions
+       WHERE (start >= ? AND start <= ?)
+          OR (start < ? AND end IS NULL)
+       ORDER BY start DESC`
+    )
+    .all(startTime, endTime, endTime);
+
+  const sessions = results.map((row: any) => sessionFromRow(row));
+
+  // Group by timer
+  const timerMap = new Map<string, Timer>();
+  const sessionsByTimer = new Map<Timer, TimerSession[]>();
+
+  for (const session of sessions) {
+    // Get or cache timer
+    let timer = timerMap.get(session.timerId);
+    if (!timer) {
+      const timerRow = queries.getTimerById().get(session.timerId);
+      if (timerRow) {
+        timer = TimerSchema.parse(timerFromRow(timerRow));
+        timerMap.set(session.timerId, timer);
+      }
+    }
+
+    if (timer) {
+      const existing = sessionsByTimer.get(timer) || [];
+      sessionsByTimer.set(timer, [...existing, session]);
+    }
+  }
+
+  return sessionsByTimer;
+}

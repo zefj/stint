@@ -1,6 +1,6 @@
 import { Command } from 'commander';
-import { format, startOfDay } from 'date-fns';
-import { getSessionsByTimer } from '../lib/timer';
+import { format } from 'date-fns';
+import { getAllSessionsByTimer } from '../lib/timer';
 import { parseDateRange } from '../lib/dateRange';
 import { getChalkColor } from '../lib/colors';
 import { formatTime, formatDuration, getSessionDuration } from '../lib/format';
@@ -8,12 +8,12 @@ import type { Timer, TimerSession } from '../lib/schemas';
 
 export const logCommand = new Command('log')
   .argument('[range]', 'date range (today, yesterday, week, month, YYYY-MM-DD, YYYY-MM-DD..YYYY-MM-DD)')
-  .description('Show completed timer sessions')
+  .description('Show time tracking log and history')
   .action((rangeStr?: string) => {
     try {
-      // Parse date range
+      // Parse date range (defaults to today)
       const range = parseDateRange(rangeStr);
-      const sessionsByTimer = getSessionsByTimer(range.start, range.end);
+      const sessionsByTimer = getAllSessionsByTimer(range.start, range.end);
 
       // Check if any sessions exist
       if (sessionsByTimer.size === 0) {
@@ -71,8 +71,15 @@ export const logCommand = new Command('log')
           for (const session of sessions) {
             const duration = getSessionDuration(session);
             dayTotal += duration;
+
+            // Show session ID (first 6 chars) for edit/delete
+            const shortId = session.id.slice(0, 6);
+
+            // Format end time - show "→ now" for running sessions
+            const endDisplay = session.end ? formatTime(session.end) : '→ now';
+
             console.log(
-              `    ${formatTime(session.start)} - ${formatTime(session.end!)}  (${formatDuration(duration)})`
+              `    [${shortId}] ${formatTime(session.start)} - ${endDisplay}  (${formatDuration(duration)})`
             );
           }
         }

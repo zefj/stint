@@ -1,16 +1,19 @@
-import { intervalToDuration } from 'date-fns';
 import type { TimerSession } from './schemas';
 
 /**
- * Format duration in seconds to human-readable string (e.g., "2h 34m")
+ * Format duration in seconds to human-readable string (e.g., "2h 34m" or "60h 8m")
+ * Always shows total hours (not days) for clarity
  */
 export function formatDuration(seconds: number): string {
-  const duration = intervalToDuration({ start: 0, end: seconds * 1000 });
+  const totalMinutes = Math.floor(seconds / 60);
+  const totalHours = Math.floor(totalMinutes / 60);
+  const remainingMinutes = totalMinutes % 60;
+  const remainingSeconds = seconds % 60;
 
   const parts: string[] = [];
-  if (duration.hours) parts.push(`${duration.hours}h`);
-  if (duration.minutes) parts.push(`${duration.minutes}m`);
-  if (!parts.length && duration.seconds) parts.push(`${duration.seconds}s`);
+  if (totalHours) parts.push(`${totalHours}h`);
+  if (remainingMinutes) parts.push(`${remainingMinutes}m`);
+  if (!parts.length && remainingSeconds) parts.push(`${remainingSeconds}s`);
 
   return parts.join(' ') || '0s';
 }
